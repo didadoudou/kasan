@@ -58,6 +58,7 @@ static void print_error_description(struct access_info *info)
 	case KASAN_PAGE_REDZONE:
 	case KASAN_SLAB_PADDING:
 	case KASAN_KMALLOC_REDZONE:
+	case KASAN_GLOBAL_REDZONE:
 	case 0 ... KASAN_SHADOW_SCALE_SIZE - 1:
 		bug_type = "out of bounds access";
 		break;
@@ -67,6 +68,12 @@ static void print_error_description(struct access_info *info)
 		break;
 	case KASAN_SHADOW_GAP:
 		bug_type = "wild memory access";
+		break;
+	case KASAN_STACK_LEFT:
+	case KASAN_STACK_MID:
+	case KASAN_STACK_RIGHT:
+	case KASAN_STACK_PARTIAL:
+		bug_type = "out-of-bounds on stack";
 		break;
 	}
 
@@ -82,19 +89,21 @@ static void print_address_description(struct access_info *info)
 {
 	struct page *page;
 	struct kmem_cache *cache;
+	struct kasan_global *gl;
 	u8 shadow_val = *(u8 *)kasan_mem_to_shadow(info->first_bad_addr);
-
-	page = virt_to_head_page((void *)info->access_addr);
 
 	switch (shadow_val) {
 	case KASAN_SLAB_PADDING:
+		page = virt_to_head_page((void *)info->access_addr);
 		cache = page->slab_cache;
 		slab_err(cache, page, "access to slab redzone");
 		dump_stack();
 		break;
 	case KASAN_KMALLOC_FREE:
 	case KASAN_KMALLOC_REDZONE:
+	case KASAN_GLOBAL_REDZONE:
 	case 1 ... KASAN_SHADOW_SCALE_SIZE - 1:
+		page = virt_to_head_page((void *)info->access_addr);
 		if (PageSlab(page)) {
 			void *object;
 			void *slab_page = page_address(page);
@@ -104,10 +113,29 @@ static void print_address_description(struct access_info *info)
 					(void *)info->access_addr);
 			object_err(cache, page, object, "kasan error");
 			break;
+		} else if ((gl = kasan_global_desc(info->access_addr, info->access_size))) {
+			if (gl->loc) {
+				pr_err("Out-of-bounds access to the global variable '%s' [%p-%p) defined at %s:%d:%d\n",
+				gl->name, (void*)gl->addr, (void*)gl->addr + gl->size,
+				gl->loc->filename, gl->loc->line, gl->loc->col);
+			} else {
+				pr_err("Out-of-bounds access to the global variable '%s' [%p-%p)\n",
+					gl->name, (void*)gl->addr, (void*)gl->addr + gl->size);
+			}
+			pr_err("\n");
+			dump_stack();
+			break;
 		}
 	case KASAN_PAGE_REDZONE:
 	case KASAN_FREE_PAGE:
+		page = virt_to_head_page((void *)info->access_addr);
 		dump_page(page, "kasan error");
+		dump_stack();
+		break;
+	case KASAN_STACK_LEFT:
+	case KASAN_STACK_MID:
+	case KASAN_STACK_RIGHT:
+	case KASAN_STACK_PARTIAL:
 		dump_stack();
 		break;
 	case KASAN_SHADOW_GAP:

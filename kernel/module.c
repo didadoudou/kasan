@@ -61,6 +61,7 @@
 #include <linux/pfn.h>
 #include <linux/bsearch.h>
 #include <uapi/linux/module.h>
+#include <linux/kasan.h>
 #include "module-internal.h"
 
 #define CREATE_TRACE_POINTS
@@ -1865,6 +1866,7 @@ static void free_module(struct module *mod)
 
 	/* This may be NULL, but that's OK */
 	unset_module_init_ro_nx(mod);
+	kasan_on_module_unload(mod->module_init, mod->init_size);
 	module_free(mod, mod->module_init);
 	kfree(mod->args);
 	percpu_modfree(mod);
@@ -1874,6 +1876,7 @@ static void free_module(struct module *mod)
 
 	/* Finally, free the core (containing the module structure) */
 	unset_module_core_ro_nx(mod);
+	kasan_on_module_unload(mod->module_core, mod->core_size);
 	module_free(mod, mod->module_core);
 
 #ifdef CONFIG_MPU
@@ -2391,6 +2394,7 @@ static void *module_alloc_update_bounds(unsigned long size)
 	void *ret = module_alloc(size);
 
 	if (ret) {
+		kasan_on_module_load(ret, size);
 		mutex_lock(&module_mutex);
 		/* Update module bounds. */
 		if ((unsigned long)ret < module_addr_min)
@@ -2809,6 +2813,7 @@ static int move_module(struct module *mod, struct load_info *info)
 		 */
 		kmemleak_ignore(ptr);
 		if (!ptr) {
+			kasan_on_module_unload(mod->module_core, mod->core_size);
 			module_free(mod, mod->module_core);
 			return -ENOMEM;
 		}
@@ -2954,7 +2959,9 @@ static struct module *layout_and_allocate(struct load_info *info, int flags)
 static void module_deallocate(struct module *mod, struct load_info *info)
 {
 	percpu_modfree(mod);
+	kasan_on_module_unload(mod->module_init, mod->init_size);
 	module_free(mod, mod->module_init);
+	kasan_on_module_unload(mod->module_core, mod->core_size);
 	module_free(mod, mod->module_core);
 }
 
@@ -3077,6 +3084,7 @@ static int do_init_module(struct module *mod)
 	mod->strtab = mod->core_strtab;
 #endif
 	unset_module_init_ro_nx(mod);
+	kasan_on_module_unload(mod->module_init, mod->init_size);
 	module_free(mod, mod->module_init);
 	mod->module_init = NULL;
 	mod->init_size = 0;

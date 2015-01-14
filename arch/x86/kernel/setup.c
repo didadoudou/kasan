@@ -857,6 +857,9 @@ dump_kernel_offset(struct notifier_block *self, unsigned long v, void *p)
 
 void __init setup_arch(char **cmdline_p)
 {
+	printk(KERN_INFO "setup_arch!!!1 %p\n", &cmdline_p);
+	//puts("setup_arch!!!\n");
+
 	memblock_reserve(__pa_symbol(_text),
 			 (unsigned long)__bss_stop - (unsigned long)_text);
 

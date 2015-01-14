@@ -272,8 +272,17 @@ static noinline void __init kmem_cache_oob(void)
 	assert_oob(p + size, "kmem_cache_oob");
 }
 
+int kasan_glob;
+
+static noinline void __init global_oob(void)
+{
+	int *p = &kasan_glob;
+	p[1] = 42;
+}
+
 int __init kmalloc_tests_init(void)
 {
+	/*
 	run_test(kmalloc_oob_right, "kmalloc_oob_right");
 	run_test(kmalloc_oob_left, "kmalloc_oob_left");
 	run_test(kmalloc_node_oob_right, "kmalloc_node_oob_right");
@@ -286,6 +295,8 @@ int __init kmalloc_tests_init(void)
 	run_test(kmalloc_uaf_memset, "kmalloc_uaf_memset");
 	run_test(kmalloc_uaf2, "kmalloc_uaf2");
 	run_test(kmem_cache_oob, "kmem_cache_oob");
+	*/
+	run_test(global_oob, "global_oob");
 	return -EAGAIN;
 }
 

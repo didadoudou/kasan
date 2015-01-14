@@ -20,6 +20,7 @@
 #include <linux/printk.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
+#include <linux/spinlock.h>
 #include <linux/stacktrace.h>
 #include <linux/string.h>
 #include <linux/types.h>
@@ -374,6 +375,136 @@ void kasan_kfree_large(const void *ptr)
 
 	kasan_poison_shadow(ptr, PAGE_SIZE << compound_order(page),
 			KASAN_FREE_PAGE);
+}
+
+struct kasan_global_desc {
+	struct kasan_global *globals;
+	unsigned long n;
+};
+
+static DEFINE_SPINLOCK(globals_lock);
+static struct kasan_global_desc *all_globals;
+static int num_globals;
+static int cap_globals;
+
+struct kasan_global *kasan_global_desc(unsigned long addr, unsigned long size)
+{
+	unsigned long flags, d;
+	struct kasan_global *res, *gl;
+	long dist;
+	int i, j;
+
+	dist = LONG_MAX;
+	res = NULL;
+	spin_lock_irqsave(&globals_lock, flags);
+	for (i = 0; i < num_globals; i++) {
+		for (j = 0; j < all_globals[i].n; j++) {
+			gl = &all_globals[i].globals[j];
+			if ((addr >= gl->addr && addr <= gl->addr + gl->addr + gl->size) ||
+				(addr + size >= gl->addr && addr + size <= gl->addr + gl->addr + gl->size)) {
+				spin_unlock_irqrestore(&globals_lock, flags);
+				return gl;
+			}
+			d = addr - (gl->addr + gl->size);
+			if (d < 0)
+				d = gl->addr - (addr + size);
+			if (d < dist) {
+				dist = d;
+				res = gl;
+			}
+		}
+	}
+	spin_unlock_irqrestore(&globals_lock, flags);
+	return res;
+}
+
+void __asan_register_globals(struct kasan_global *globals, unsigned long n)
+{
+#if 1
+	struct kasan_global *gl;
+	struct kasan_global_desc *new_globals;
+	unsigned long flags, i, addr1;
+	u8 *shadow;
+
+	spin_lock_irqsave(&globals_lock, flags);
+	if (num_globals >= cap_globals) {
+		cap_globals *= 2;
+		if (cap_globals == 0)
+			cap_globals = 1024;
+		new_globals = krealloc(all_globals, cap_globals * sizeof(new_globals[0]), GFP_KERNEL);
+		if (new_globals == NULL) {
+			spin_unlock_irqrestore(&globals_lock, flags);
+			return;
+		}
+		all_globals = new_globals;
+	}
+	all_globals[num_globals].globals = globals;
+	all_globals[num_globals].n = n;
+	num_globals++;
+	
+	for (i = 0; i < n; i++) {
+		gl = &globals[i];
+/*
+		pr_err("KASAN: __asan_register_globals(addr=%p size=%p size1=%p" 
+			" name=%s module=%s dyn=%d at %s:%d:%d)\n",
+			(void*)gl->addr, (void*)gl->size, (void*)gl->size_with_redzone, gl->name,
+			gl->module_name, (int)gl->has_dynamic_init,
+			gl->loc ? gl->loc->filename : "", gl->loc ? gl->loc->line : 0,
+			gl->loc ? gl->loc->col : 0);
+*/
+		BUG_ON((gl->addr % KASAN_SHADOW_SCALE_SIZE) != 0);
+		BUG_ON((gl->size_with_redzone % KASAN_SHADOW_SCALE_SIZE) != 0);
+		addr1 = round_up(gl->addr + gl->size, KASAN_SHADOW_SCALE_SIZE);
+		kasan_poison_shadow((void*)addr1, gl->addr + gl->size_with_redzone - addr1, KASAN_GLOBAL_REDZONE);
+		if (gl->size % KASAN_SHADOW_SCALE_SIZE) {
+			shadow = (u8 *)kasan_mem_to_shadow(gl->addr + gl->size);
+			*shadow = gl->size & KASAN_SHADOW_MASK;
+		}
+	}
+	spin_unlock_irqrestore(&globals_lock, flags);
+#endif
+}
+EXPORT_SYMBOL(__asan_register_globals);
+
+void __asan_unregister_globals(struct kasan_global *globals, unsigned long n)
+{
+#if 0
+	unsigned long flags;
+	int i;
+
+	spin_lock_irqsave(&globals_lock, flags);
+	for (i = 0; i < num_globals; i++) {
+		if (all_globals[i].globals == globals) {
+			all_globals[i] = all_globals[num_globals - 1];
+			num_globals--;
+			break;
+		}
+	}
+	spin_unlock_irqrestore(&globals_lock, flags);
+#endif
+}
+EXPORT_SYMBOL(__asan_unregister_globals);
+
+void kasan_on_module_load(void *ptr, unsigned long size)
+{
+}
+
+void kasan_on_module_unload(void *ptr, unsigned long size)
+{
+	unsigned long flags, addr;
+	int i;
+
+	spin_lock_irqsave(&globals_lock, flags);
+	for (i = 0; i < num_globals; i++) {
+		addr = all_globals[i].globals[0].addr;
+		if (addr >= (unsigned long)ptr &&
+			addr < (unsigned long)ptr + size) {
+			all_globals[i] = all_globals[num_globals - 1];
+			num_globals--;
+			i--;
+		}
+	}
+	spin_unlock_irqrestore(&globals_lock, flags);
 }
 
 void notrace __asan_load1(unsigned long addr)

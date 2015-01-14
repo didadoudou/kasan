@@ -464,8 +464,11 @@ static void nfnetlink_rcv(struct sk_buff *skb)
 static int nfnetlink_bind(int group)
 {
 	const struct nfnetlink_subsystem *ss;
-	int type = nfnl_group2type[group];
+	int type;
 
+	if (group >= ARRAY_SIZE(nfnl_group2type))
+		return -EINVAL;
+	type = nfnl_group2type[group];
 	rcu_read_lock();
 	ss = nfnetlink_get_subsys(type);
 	rcu_read_unlock();

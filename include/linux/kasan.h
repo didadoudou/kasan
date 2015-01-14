@@ -5,6 +5,7 @@
 
 struct kmem_cache;
 struct page;
+struct module;
 
 #ifdef CONFIG_KASAN
 #include <asm/kasan.h>
@@ -43,6 +44,9 @@ void kasan_krealloc(const void *object, size_t new_size);
 void kasan_slab_alloc(struct kmem_cache *s, void *object);
 void kasan_slab_free(struct kmem_cache *s, void *object);
 
+void kasan_on_module_load(void *ptr, unsigned long size);
+void kasan_on_module_unload(void *ptr, unsigned long size);
+
 #else /* CONFIG_KASAN */
 
 static inline void kasan_unpoison_shadow(const void *address, size_t size) {}
@@ -63,6 +67,9 @@ static inline void kasan_krealloc(const void *object, size_t new_size) {}
 
 static inline void kasan_slab_alloc(struct kmem_cache *s, void *object) {}
 static inline void kasan_slab_free(struct kmem_cache *s, void *object) {}
+
+static inline void kasan_on_module_load(void *ptr, unsigned long size) {}
+static inline void kasan_on_module_unload(void *ptr, unsigned long size) {}
 
 #endif /* CONFIG_KASAN */
 

@@ -12,6 +12,30 @@
 #define KASAN_KMALLOC_REDZONE   0xFC  /* redzone inside slub object */
 #define KASAN_KMALLOC_FREE      0xFB  /* object was freed (kmem_cache_free/kfree) */
 #define KASAN_SHADOW_GAP        0xF9  /* address belongs to shadow memory */
+#define KASAN_GLOBAL_REDZONE	0xF8  /* redzone around global variables */
+
+/* Stack redzones */
+#define KASAN_STACK_LEFT        0xF1
+#define KASAN_STACK_MID         0xF2
+#define KASAN_STACK_RIGHT       0xF3
+#define KASAN_STACK_PARTIAL     0xF4
+
+struct kasan_global_loc {
+	const char *filename;
+	int line;
+	int col;
+};
+
+// This structure describes an instrumented global variable.
+struct kasan_global {
+	unsigned long addr;
+	unsigned long size;
+	unsigned long size_with_redzone;
+	const char *name;
+	const char *module_name;
+	unsigned long has_dynamic_init;
+	struct kasan_global_loc *loc;
+};
 
 struct access_info {
 	unsigned long access_addr;
@@ -23,6 +47,8 @@ struct access_info {
 
 void kasan_report_error(struct access_info *info);
 void kasan_report_user_access(struct access_info *info);
+
+struct kasan_global* kasan_global_desc(unsigned long addr, unsigned long size);
 
 static inline unsigned long kasan_shadow_to_mem(unsigned long shadow_addr)
 {
@@ -43,11 +69,13 @@ static __always_inline void kasan_report(unsigned long addr,
 	if (likely(!kasan_enabled()))
 		return;
 
+	kasan_disable_local();
 	info.access_addr = addr;
 	info.access_size = size;
 	info.is_write = is_write;
 	info.ip = _RET_IP_;
 	kasan_report_error(&info);
+	kasan_enable_local();
 }
 
 

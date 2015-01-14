@@ -6,6 +6,12 @@
 #include <linux/vmalloc.h>
 
 #include <asm/tlbflush.h>
+#include <asm/sections.h>
+
+extern pte_t kasan_early_pte[];
+extern pte_t kasan_early_pmd[];
+extern pte_t kasan_early_pud[];
+extern unsigned char kasan_early_page[PAGE_SIZE];
 
 extern pgd_t early_level4_pgt[PTRS_PER_PGD];
 extern struct range pfn_mapped[E820_X_MAX];
@@ -41,28 +47,11 @@ static void __init clear_zero_shadow_mapping(unsigned long start,
 void __init kasan_map_zero_shadow(pgd_t *pgd)
 {
 	int i;
-	unsigned long start = KASAN_SHADOW_START;
-	unsigned long end = kasan_mem_to_shadow(KASAN_SHADOW_START);
+	unsigned long p;
 
-	for (i = pgd_index(start); start < end; i++) {
-		pgd[i] = __pgd(__pa_nodebug(zero_pud) | __PAGE_KERNEL_RO);
-		start += PGDIR_SIZE;
-	}
-
-	start = end;
-	end = kasan_mem_to_shadow(KASAN_SHADOW_END);
-	for (i = pgd_index(start); start < end; i++) {
-		pgd[i] = __pgd(__pa_nodebug(poisoned_pud) | __PAGE_KERNEL_RO);
-		start += PGDIR_SIZE;
-	}
-
-	start = end;
-	end = KASAN_SHADOW_END;
-	for (i = pgd_index(start); start < end; i++) {
-		pgd[i] = __pgd(__pa_nodebug(zero_pud) | __PAGE_KERNEL_RO);
-		start += PGDIR_SIZE;
-	}
-
+	p = KASAN_SHADOW_START;
+	for (i = pgd_index(p); p < KASAN_SHADOW_END; i++, p += PGDIR_SIZE)
+		pgd[i] = __pgd(__pa_nodebug(kasan_early_pud) | _KERNPG_TABLE);
 }
 
 #ifdef CONFIG_KASAN_INLINE
@@ -85,6 +74,7 @@ static struct notifier_block kasan_die_notifier = {
 void __init kasan_init(void)
 {
 	int i;
+	unsigned long start, end, shadow_start, shadow_end;
 
 #ifdef CONFIG_KASAN_INLINE
 	register_die_notifier(&kasan_die_notifier);
@@ -97,12 +87,40 @@ void __init kasan_init(void)
 	clear_zero_shadow_mapping(kasan_mem_to_shadow(PAGE_OFFSET),
 				kasan_mem_to_shadow(PAGE_OFFSET + MAXMEM));
 
+	pr_err("KASAN: globals are at %p\n", &early_level4_pgt[0]);
 	for (i = 0; i < E820_X_MAX; i++) {
 		if (pfn_mapped[i].end == 0)
 			break;
 
+		pr_err("KASAN: mapping shadow for %p-%p\n",
+			(void*)pfn_to_kaddr(pfn_mapped[i].start), (void*)pfn_to_kaddr(pfn_mapped[i].end));
 		if (map_range(&pfn_mapped[i]))
 			panic("kasan: unable to allocate shadow!");
 	}
+	start = __START_KERNEL_map;
+	//end = (unsigned long)_end;
+	end = __START_KERNEL_map + (2ull << 30) - (10ull << 20);
+	shadow_start = kasan_mem_to_shadow(start);
+	shadow_end = kasan_mem_to_shadow(end);
+	pr_err("KASAN: mapping shadow for %p-%p -> %p-%p\n",
+		(void*)start, (void*)end, (void*)shadow_start, (void*)shadow_end);
+	clear_zero_shadow_mapping(shadow_start, shadow_end);
+	if (vmemmap_populate(shadow_start, shadow_end, NUMA_NO_NODE))
+		panic("kasan: unable to allocate shadow!");
+
+/*
+	start = MODULES_VADDR;
+	end = __START_KERNEL_map + (2ull << 30) - (10ull << 20);
+	shadow_start = kasan_mem_to_shadow(start);
+	shadow_end = kasan_mem_to_shadow(end);
+	pr_err("KASAN: mapping shadow for %p-%p -> %p-%p\n",
+		(void*)start, (void*)end, (void*)shadow_start, (void*)shadow_end);
+	clear_zero_shadow_mapping(shadow_start, shadow_end);
+	if (vmemmap_populate(shadow_start, shadow_end, NUMA_NO_NODE))
+		panic("kasan: unable to allocate shadow!");
+*/
+
+	__memset(kasan_early_page, 0, PAGE_SIZE);
 	load_cr3(init_level4_pgt);
+	init_task.kasan_depth = 0;
 }
