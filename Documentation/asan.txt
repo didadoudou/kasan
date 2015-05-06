@@ -17,7 +17,7 @@ CONFIG_KMEMCHECK, because it:
  - does prompt detection of bad memory accesses,
  - prints informative reports.
 
-ASAN can be enabled with CONFIG_ASAN=y (the kernel should be built with a
+ASAN can be enabled with CONFIG_KASAN=y (the kernel should be built with a
 specific compiler, see the web page below), currently works only on x86_64,
 supports only SLAB allocator.
 
@@ -463,7 +463,7 @@ is the number of bits to shift one bit left to get the PAGE_SIZE value and
 SHADOW_SCALE is currently 3.
 
 The offset of the shadow memory within the physical memory can be configured
-as CONFIG_ASAN_SHADOW_OFFSET, the default value is 0x36400600. To use the
+as CONFIG_KASAN_SHADOW_OFFSET, the default value is 0x36400600. To use the
 default value at least 1 GB of physical memory is required.
 
 Since the current implementation relies on the fact that sizeof(unsigned long)
@@ -652,4 +652,4 @@ allocated objects inside, since they could be not freed yet but put into the
 quarantine. Therefore, each time some cache is destroyed the quarantine is
 checked for any objects from this cache and the found objects are freed.
 
-Qurantine size can be configured by CONFIG_ASAN_QUARANTINE_SIZE.
+Qurantine size can be configured by CONFIG_KASAN_QUARANTINE_SIZE.

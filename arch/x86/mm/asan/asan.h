@@ -7,7 +7,7 @@
 
 #define ASAN_COLORED_OUTPUT_ENABLE 0
 
-#define ASAN_SHADOW_OFFSET ((unsigned long)CONFIG_ASAN_SHADOW_OFFSET)
+#define ASAN_SHADOW_OFFSET ((unsigned long)CONFIG_KASAN_SHADOW_OFFSET)
 #define ASAN_SHADOW_SCALE 3
 #define ASAN_SHADOW_GRAIN (1UL << ASAN_SHADOW_SCALE)
 
@@ -37,7 +37,7 @@ struct redzone {
 
 #define ASAN_REDZONE_SIZE sizeof(struct redzone)
 #define ASAN_QUARANTINE_SIZE \
-	(((unsigned long)(CONFIG_ASAN_QUARANTINE_SIZE)) << 20)
+	(((unsigned long)(CONFIG_KASAN_QUARANTINE_SIZE)) << 20)
 
 /* FIXME: no redzones in 4MB cache. */
 #define ASAN_HAS_REDZONE(cache) ((cache)->object_size < (4 << 20))

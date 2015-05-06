@@ -63,7 +63,7 @@ char *strcpy(char *dest, const char *src);
 char *strcat(char *dest, const char *src);
 int strcmp(const char *cs, const char *ct);
 
-#if defined(CONFIG_ASAN) && !defined(ASAN_NO_INTERCEPTORS)
+#if defined(CONFIG_KASAN) && !defined(ASAN_NO_INTERCEPTORS)
 
 /*
  * ASAN instruments for memory accesses only functions written in C.
@@ -86,7 +86,7 @@ void *asan_memmove(void *dst, const void *src, size_t len);
  * (see lib/string.c) and instrumented as they are.
  */
 
-#endif /* CONFIG_ASAN && !ASAN_NO_INTERCEPTORS */
+#endif /* CONFIG_KASAN && !ASAN_NO_INTERCEPTORS */
 
 #endif /* __KERNEL__ */
 

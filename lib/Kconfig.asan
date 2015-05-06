@@ -1,41 +1,81 @@
-config HAVE_ARCH_ASAN
+config HAVE_ARCH_KASAN
 	bool
 
-if HAVE_ARCH_ASAN
+if HAVE_ARCH_KASAN
 
-config ASAN
-	bool "AddressSanitizer: dynamic memory error detector"
+config KASAN
+	bool "KASan: runtime memory debugger"
 	depends on SLAB
 	depends on !DEBUG_SLAB
 	depends on !DEBUG_PAGEALLOC
 	depends on !KMEMCHECK
 	default n
 	help
-	  Enables AddressSanitizer - dynamic memory error detector,
-	  that finds out-of-bounds and use-after-free bugs.
+	  Enables kernel address sanitizer - runtime memory debugger,
+	  designed to find out-of-bounds accesses and use-after-free bugs.
+	  This is strictly a debugging feature and it requires a gcc version
+	  of 4.9.2 or later. Detection of out of bounds accesses to stack or
+	  global variables requires gcc 5.0 or later.
+	  This feature consumes about 1/8 of available memory and brings about
+	  ~x3 performance slowdown.
+	  For better error detection enable CONFIG_STACKTRACE,
+	  and add slub_debug=U to boot cmdline.
 
-config ASAN_QUARANTINE_SIZE
+config KASAN_QUARANTINE_SIZE
 	int "AddressSanitizer: quarantine size in MB"
-	depends on ASAN
+	depends on KASAN
 	default 128
 	help
 	  Select the maximum total size of quarantine in MB.
 	  AddressSanitizer puts memory blocks in quarantine instead of
 	  freeing them so they are not reallocated and reused any time soon.
 
-config ASAN_SHADOW_OFFSET
+config KASAN_SHADOW_OFFSET
 	hex "AddressSanitizer: offset of shadow memory"
-	depends on ASAN
-	default 0x36400600
+	depends on KASAN
+    default 0xdffffc0000000000 if X86_64
 	help
 	  Select the offset in bytes of the shadow memory region
 	  within the physical memory.
 
-config ASAN_STACK_ORDER_ADD
+config KASAN_STACK_ORDER_ADD
 	hex "AddressSanitizer: enlarge stacks order"
-	depends on ASAN
+	depends on KASAN
 	default 2
 	help
 	  Enlarge all stacks 2^this_value times
+
+choice
+	prompt "Instrumentation type"
+	depends on KASAN
+	default KASAN_OUTLINE
+
+config KASAN_OUTLINE
+	bool "Outline instrumentation"
+	help
+	  Before every memory access compiler insert function call
+	  __asan_load*/__asan_store*. These functions performs check
+	  of shadow memory. This is slower than inline instrumentation,
+	  however it doesn't bloat size of kernel's .text section so
+	  much as inline does.
+
+config KASAN_INLINE
+	bool "Inline instrumentation"
+	help
+	  Compiler directly inserts code checking shadow memory before
+	  memory accesses. This is faster than outline (in some workloads
+	  it gives about x2 boost over outline instrumentation), but
+	  make kernel's .text size much bigger.
+	  This requires a gcc version of 5.0 or later.
+
+endchoice
+
+config TEST_KASAN
+	tristate "Module for testing kasan for bug detection"
+	depends on m && KASAN
+	help
+	  This is a test module doing various nasty things like
+	  out of bounds accesses, use after free. It is useful for testing
+	  kernel debugging features like kernel address sanitizer.
 
 endif

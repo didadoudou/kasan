@@ -10,7 +10,7 @@
 
 struct kmem_cache;
 
-#ifdef CONFIG_ASAN
+#ifdef CONFIG_KASAN
 
 /* Reserves shadow memory. */
 void asan_init_shadow(void);
@@ -30,7 +30,7 @@ size_t asan_ksize(const void *ptr);
 
 void asan_check(const volatile void *ptr, size_t sz, bool wr);
 
-#else /* CONFIG_ASAN */
+#else /* CONFIG_KASAN */
 
 /* When disabled ASAN is no-op. */
 
@@ -49,6 +49,6 @@ static inline void asan_krealloc(void *object, size_t size) {}
 
 static inline void asan_check(const volatile void *ptr, size_t sz, bool wr) {}
 
-#endif /* CONFIG_ASAN */
+#endif /* CONFIG_KASAN */
 
 #endif /* LINUX_ASAN_H */

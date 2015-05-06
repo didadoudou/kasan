@@ -3387,7 +3387,7 @@ free_done:
  * Release an obj back to its cache. If the obj has a constructed state, it must
  * be in this state _before_ it is released.  Called with disabled ints.
  */
-#ifdef CONFIG_ASAN
+#ifdef CONFIG_KASAN
 static inline void __cache_free(struct kmem_cache *cachep, void *objp,
 				unsigned long caller)
 {
@@ -4337,7 +4337,7 @@ size_t ksize(const void *objp)
 	if (unlikely(objp == ZERO_SIZE_PTR))
 		return 0;
 
-#ifdef CONFIG_ASAN
+#ifdef CONFIG_KASAN
 	return asan_ksize(objp);
 #else
 	return virt_to_cache(objp)->object_size;
