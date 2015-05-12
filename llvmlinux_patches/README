@@ -1,0 +1,2 @@
+DIRNAME=llvmlinux_patches
+for i in `cat ${DIRNAME}/series`; do echo git apply ${DIRNAME}/$i; git apply ${DIRNAME}/$i 2>&1 ;done
