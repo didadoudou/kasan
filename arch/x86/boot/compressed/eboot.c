@@ -14,6 +14,7 @@
 #include <asm/desc.h>
 
 #undef memcpy			/* Use memcpy from misc.c */
+#undef memset			/* Use memcpy from misc.c */
 
 #include "eboot.h"
 

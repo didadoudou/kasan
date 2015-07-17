@@ -35,6 +35,7 @@ enum stat_item {
 	CPU_PARTIAL_FREE,	/* Refill cpu partial on free */
 	CPU_PARTIAL_NODE,	/* Refill cpu partial from node partial */
 	CPU_PARTIAL_DRAIN,	/* Drain cpu partial to node partial */
+	QUARANTINE_BREACH,	/* Slab left quarantine via reclaimer */
 	NR_SLUB_STAT_ITEMS };
 
 struct kmem_cache_cpu {
@@ -88,7 +89,9 @@ struct kmem_cache {
 	struct memcg_cache_params *memcg_params;
 	int max_attr_size; /* for propagation, maximum size of a stored attr */
 #endif
-
+#ifdef CONFIG_SLUB_DEBUG
+	struct kmem_cache_quarantine_shrinker *quarantine_shrinker;
+#endif
 #ifdef CONFIG_NUMA
 	/*
 	 * Defragmentation by allocating from a remote node.
@@ -97,5 +100,22 @@ struct kmem_cache {
 #endif
 	struct kmem_cache_node *node[MAX_NUMNODES];
 };
+
+#ifdef CONFIG_SYSFS
+#define SLAB_SUPPORTS_SYSFS
+void sysfs_slab_remove(struct kmem_cache *);
+#else
+static inline void sysfs_slab_remove(struct kmem_cache *s)
+{
+}
+#endif
+
+static inline void *virt_to_obj(struct kmem_cache *s, void *slab_page, void *x)
+{
+	return x - ((x - slab_page) % s->size);
+}
+
+void object_err(struct kmem_cache *s, struct page *page,
+		u8 *object, char *reason);
 
 #endif /* _LINUX_SLUB_DEF_H */
