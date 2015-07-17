@@ -73,7 +73,7 @@ __kmem_cache_alias(struct mem_cgroup *memcg, const char *name, size_t size,
 #define SLAB_DEBUG_FLAGS (SLAB_RED_ZONE | SLAB_POISON | SLAB_STORE_USER)
 #elif defined(CONFIG_SLUB_DEBUG)
 #define SLAB_DEBUG_FLAGS (SLAB_RED_ZONE | SLAB_POISON | SLAB_STORE_USER | \
-			  SLAB_TRACE | SLAB_DEBUG_FREE)
+			  SLAB_TRACE | SLAB_DEBUG_FREE | SLAB_QUARANTINE)
 #else
 #define SLAB_DEBUG_FLAGS (0)
 #endif
@@ -295,10 +295,24 @@ struct kmem_cache_node {
 	atomic_long_t nr_slabs;
 	atomic_long_t total_objects;
 	struct list_head full;
+
+	struct {
+		unsigned long nr_objects;
+		unsigned long nr_slabs;
+		struct list_head slabs;
+	} quarantine;
 #endif
 #endif
 
 };
+
+/*
+ * Iterator over all nodes. The body will be executed for each node that has
+ * a kmem_cache_node structure allocated (which is true for all online nodes)
+ */
+#define for_each_kmem_cache_node(__s, __node, __n) \
+        for (__node = 0; __node < nr_node_ids; __node++) \
+                 if ((__n = get_node(__s, __node)))
 
 void *slab_next(struct seq_file *m, void *p, loff_t *pos);
 void slab_stop(struct seq_file *m, void *p);
