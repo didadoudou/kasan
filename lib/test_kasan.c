@@ -91,7 +91,7 @@ static noinline void __init kmalloc_node_oob_right(void)
 	assert_oob(ptr + size, "kmalloc_node_oob_right");
 }
 
-static noinline void __init kmalloc_large_oob_rigth(void)
+static noinline void __init kmalloc_large_oob_right(void)
 {
 	char *ptr;
 	size_t size = KMALLOC_MAX_CACHE_SIZE + 10;
@@ -105,7 +105,7 @@ static noinline void __init kmalloc_large_oob_rigth(void)
 	x = ptr[size];
 	kfree(ptr);
 
-	assert_oob(ptr + size, "kmalloc_large_oob_rigth");
+	assert_oob(ptr + size, "kmalloc_large_oob_right");
 }
 
 static noinline void __init kmalloc_oob_krealloc_more(void)
@@ -298,7 +298,9 @@ int __init kmalloc_tests_init(void)
 	run_test(kmalloc_oob_right, "kmalloc_oob_right");
 	run_test(kmalloc_oob_left, "kmalloc_oob_left");
 	run_test(kmalloc_node_oob_right, "kmalloc_node_oob_right");
-	run_test(kmalloc_large_oob_rigth, "kmalloc_large_oob_rigth");
+#ifdef CONFIG_SLUB
+	run_test(kmalloc_large_oob_right, "kmalloc_large_oob_right");
+#endif
 	run_test(kmalloc_oob_krealloc_more, "kmalloc_oob_krealloc_more");
 	run_test(kmalloc_oob_krealloc_less, "kmalloc_oob_krealloc_less");
 	run_test(kmalloc_oob_16, "kmalloc_oob_16");
