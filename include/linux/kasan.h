@@ -6,6 +6,12 @@
 struct kmem_cache;
 struct page;
 
+#ifdef SLAB
+#define cache_size_t size_t
+#else
+#define cache_size_t unsigned long
+#endif
+
 #ifdef CONFIG_KASAN
 #include <asm/kasan.h>
 #include <linux/sched.h>
@@ -46,17 +52,26 @@ void kasan_unpoison_shadow(const void *address, size_t size);
 void kasan_alloc_pages(struct page *page, unsigned int order);
 void kasan_free_pages(struct page *page, unsigned int order);
 
+void kasan_cache_create(struct kmem_cache *cache, cache_size_t *size,
+			unsigned long *flags);
+
 void kasan_poison_slab(struct page *page);
 void kasan_unpoison_object_data(struct kmem_cache *cache, void *object);
 void kasan_poison_object_data(struct kmem_cache *cache, void *object);
 
-void kasan_kmalloc_large(const void *ptr, size_t size);
+void kasan_kmalloc_large(const void *ptr, size_t size, gfp_t flags);
 void kasan_kfree_large(const void *ptr);
-void kasan_kmalloc(struct kmem_cache *s, const void *object, size_t size);
-void kasan_krealloc(const void *object, size_t new_size);
+void kasan_kmalloc(struct kmem_cache *s, const void *object, size_t size,
+		   gfp_t flags);
+void kasan_krealloc(const void *object, size_t new_size, gfp_t flags);
 
-void kasan_slab_alloc(struct kmem_cache *s, void *object);
-void kasan_slab_free(struct kmem_cache *s, void *object);
+void kasan_slab_alloc(struct kmem_cache *s, void *object, gfp_t flags);
+bool kasan_slab_free(struct kmem_cache *s, void *object);
+
+struct kasan_cache {
+	int alloc_meta_offset;
+	int free_meta_offset;
+};
 
 #define MODULE_ALIGN (PAGE_SIZE << KASAN_SHADOW_SCALE_SHIFT)
 
