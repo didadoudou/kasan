@@ -293,6 +293,31 @@ static noinline void __init kasan_stack_oob(void)
 	assert_oob(p, __func__);
 }
 
+static noinline void __init kasan_quarantine_cache(void)
+{
+	struct kmem_cache *cache = kmem_cache_create(
+			"test", 137, 8, GFP_KERNEL, NULL);
+	int i;
+
+	for (i = 0; i <  100; i++) {
+		void *p = kmem_cache_alloc(cache, GFP_KERNEL);
+
+		kmem_cache_free(cache, p);
+		p = kmalloc(sizeof(u64), GFP_KERNEL);
+		kfree(p);
+	}
+	kmem_cache_shrink(cache);
+	for (i = 0; i <  100; i++) {
+		u64 *p = kmem_cache_alloc(cache, GFP_KERNEL);
+
+		kmem_cache_free(cache, p);
+		p = kmalloc(sizeof(u64), GFP_KERNEL);
+		kfree(p);
+	}
+	kmem_cache_destroy(cache);
+}
+
+
 int __init kmalloc_tests_init(void)
 {
 	run_test(kmalloc_oob_right, "kmalloc_oob_right");
@@ -311,6 +336,7 @@ int __init kmalloc_tests_init(void)
 	run_test(kmem_cache_oob, "kmem_cache_oob");
 	run_test(kasan_global_oob, "kasan_global_oob");
 	run_test(kasan_stack_oob, "kasan_stack_oob");
+	run_test(kasan_quarantine_cache, "kasan_quarantine_cache");
 	return -EAGAIN;
 }
 

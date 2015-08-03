@@ -277,6 +277,7 @@ void kmem_cache_destroy(struct kmem_cache *s)
 	kmem_cache_destroy_memcg_children(s);
 
 	get_online_cpus();
+	kasan_cache_destroy(s);
 	mutex_lock(&slab_mutex);
 	s->refcount--;
 	if (!s->refcount) {
