@@ -4016,6 +4016,7 @@ void __init kmem_cache_init_late(void)
  */
 static int slab_unmergeable(struct kmem_cache *s)
 {
+	return 1;
 	if (slub_nomerge || (s->flags & SLUB_NEVER_MERGE))
 		return 1;
 
