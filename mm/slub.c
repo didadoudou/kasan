@@ -3747,6 +3747,7 @@ int kmem_cache_shrink(struct kmem_cache *s)
 	struct kmem_cache_node *n;
 	struct page *page;
 	struct page *t;
+	kasan_cache_shrink(s);
 	int objects = oo_objects(s->max);
 	struct list_head *slabs_by_inuse =
 		kmalloc(sizeof(struct list_head) * objects, GFP_KERNEL);

@@ -2478,6 +2478,7 @@ int kmem_cache_shrink(struct kmem_cache *cachep)
 	BUG_ON(!cachep || in_interrupt());
 
 	get_online_cpus();
+	kasan_cache_shrink(cachep);
 	mutex_lock(&slab_mutex);
 	ret = __cache_shrink(cachep);
 	mutex_unlock(&slab_mutex);
