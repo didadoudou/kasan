@@ -700,8 +700,15 @@ else
 	call_threshold := 0
 endif
 
+ifeq ($(COMPILER),clang)
+CFLAGS_KASAN_MINIMAL_COMPSPECIFIC := -mllvm -asan-globals=1
+else
+CFLAGS_KASAN_MINIMAL_COMPSPECIFIC := --param asan-globals=1
+endif
+
+
 CFLAGS_KASAN_MINIMAL := $(call cc-option, -fsanitize=kernel-address \
-			--param asan-globals=1)
+			$(CFLAGS_KASAN_MINIMAL_COMPSPECIFIC))
 
 CFLAGS_KASAN := $(call cc-option, -fsanitize=kernel-address \
 		-fasan-shadow-offset=$(CONFIG_KASAN_SHADOW_OFFSET) \
