@@ -106,9 +106,10 @@ else
         # unfortunately it makes reading oopses harder.
         KBUILD_CFLAGS += $(call cc-option,-funit-at-a-time)
 
-        # this works around some issues with generating unwind tables in older gccs
-        # newer gccs do it by default
-        KBUILD_CFLAGS += -maccumulate-outgoing-args
+###	TODO(glider): Clang does not support -maccumulate-outgoing-args
+###        # this works around some issues with generating unwind tables in older gccs
+###        # newer gccs do it by default
+###        KBUILD_CFLAGS += -maccumulate-outgoing-args
 endif
 
 # Make sure compiler does not have buggy stack-protector support.
