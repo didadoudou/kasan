@@ -249,8 +249,9 @@ static __always_inline void check_memory_region(unsigned long addr,
 
 int kasan_module_alloc(void *addr, size_t size)
 {
+	size_t rounded_size = round_up(size, KASAN_SHADOW_SCALE_SIZE);
 
-	size_t shadow_size = round_up(size >> KASAN_SHADOW_SCALE_SHIFT,
+	size_t shadow_size = round_up(rounded_size >> KASAN_SHADOW_SCALE_SHIFT,
 				PAGE_SIZE);
 	unsigned long shadow_start = kasan_mem_to_shadow((unsigned long)addr);
 	void *ret;
@@ -263,6 +264,13 @@ int kasan_module_alloc(void *addr, size_t size)
 			GFP_KERNEL | __GFP_HIGHMEM | __GFP_ZERO,
 			PAGE_KERNEL, VM_NO_GUARD, NUMA_NO_NODE,
 			__builtin_return_address(0));
+	// If |size| is not aligned on KASAN_SHADOW_SCALE_SIZE, mark the last
+	// KASAN_SHADOW_SCALE_SIZE bytes as partially accessible.
+	if (ret && (size < rounded_size)) {
+		u8 *shadow = (u8 *)kasan_mem_to_shadow(
+			(unsigned long)(addr + size));
+		*shadow = KASAN_SHADOW_SCALE_SIZE - rounded_size + size;
+	}
 	return ret ? 0 : -ENOMEM;
 }
 
