@@ -82,9 +82,19 @@ void sort_extable(struct exception_table_entry *start,
 void sort_main_extable(void);
 void trim_init_extable(struct module *m);
 
+struct unknown_struct_with_unique_name;
+
 #ifdef MODULE
+// TODO(glider): temporarily use an unknown structure to work around
+// https://llvm.org/bugs/show_bug.cgi?id=24379
+#if 0
 #define MODULE_GENERIC_TABLE(gtype, name)			\
 extern const struct gtype##_id __mod_##gtype##_table		\
+  __attribute__ ((unused, alias(__stringify(name))))
+#endif
+
+#define MODULE_GENERIC_TABLE(gtype, name)			\
+extern const struct unknown_struct_with_unique_name __mod_##gtype##_table		\
   __attribute__ ((unused, alias(__stringify(name))))
 
 #else  /* !MODULE */
