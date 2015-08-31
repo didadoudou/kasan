@@ -357,6 +357,13 @@ CFLAGS_KERNEL	=
 AFLAGS_KERNEL	=
 CFLAGS_GCOV	= -fprofile-arcs -ftest-coverage
 
+#ifeq ($(shell $(CC) -v 2>&1 | grep -c "clang version"), 1)
+#COMPILER := clang
+#else
+#COMPILER := gcc
+#endif
+#export COMPILER
+
 ifeq ($(COMPILER),clang)
 ifneq ($(CROSS_COMPILE),)
 CLANG_TARGET	:= -target $(notdir $(CROSS_COMPILE:%-=%))
@@ -647,6 +654,21 @@ endif
 endif
 KBUILD_CFLAGS += $(stackp-flag)
 
+ifeq ($(COMPILER),clang)
+KBUILD_CPPFLAGS += $(call cc-option,-Qunused-arguments,)
+KBUILD_CPPFLAGS += $(call cc-option,-Wno-unknown-warning-option,)
+KBUILD_CFLAGS += $(call cc-disable-warning, unused-variable)
+KBUILD_CFLAGS += $(call cc-disable-warning, format-invalid-specifier)
+KBUILD_CFLAGS += $(call cc-disable-warning, gnu)
+# Quiet clang warning: comparison of unsigned expression < 0 is always false
+KBUILD_CFLAGS += $(call cc-disable-warning, tautological-compare)
+# CLANG uses a _MergedGlobals as optimization, but this breaks modpost, as the
+# source of a reference will be _MergedGlobals and not on of the whitelisted names.
+# See modpost pattern 2
+KBUILD_CFLAGS += $(call cc-option, -fcatch-undefined-behavior)
+KBUILD_CFLAGS += $(call cc-option, -mno-global-merge,)
+endif
+
 # This warning generated too much noise in a regular build.
 # Use make W=1 to enable this warning (see scripts/Makefile.build)
 KBUILD_CFLAGS += $(call cc-disable-warning, unused-but-set-variable)
@@ -701,7 +723,7 @@ else
 endif
 
 ifeq ($(COMPILER),clang)
-CFLAGS_KASAN_MINIMAL_COMPSPECIFIC := -mllvm -asan-globals=1
+CFLAGS_KASAN_MINIMAL_COMPSPECIFIC := -mllvm -asan-globals=0
 else
 CFLAGS_KASAN_MINIMAL_COMPSPECIFIC := --param asan-globals=1
 endif
