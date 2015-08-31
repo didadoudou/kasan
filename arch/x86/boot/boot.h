@@ -29,6 +29,8 @@
 #include "ctype.h"
 #include "cpuflags.h"
 
+#define asmregparm __attribute__((regparm(3)))
+
 /* Useful macros */
 #define BUILD_BUG_ON(condition) ((void)sizeof(char[1 - 2*!!(condition)]))
 
@@ -224,15 +226,32 @@ static inline bool heap_free(size_t n)
 
 /* copy.S */
 
-void copy_to_fs(addr_t dst, void *src, size_t len);
-void *copy_from_fs(void *dst, addr_t src, size_t len);
-void copy_to_gs(addr_t dst, void *src, size_t len);
-void *copy_from_gs(void *dst, addr_t src, size_t len);
-void *memcpy(void *dst, void *src, size_t len);
-void *memset(void *dst, int c, size_t len);
+void asmregparm copy_to_fs(addr_t dst, void *src, size_t len);
+void * asmregparm copy_from_fs(void *dst, addr_t src, size_t len);
+void asmregparm copy_to_gs(addr_t dst, void *src, size_t len);
+void * asmregparm copy_from_gs(void *dst, addr_t src, size_t len);
 
-#define memcpy(d,s,l) __builtin_memcpy(d,s,l)
-#define memset(d,c,l) __builtin_memset(d,c,l)
+static inline void * asmregparm memcpy(void *d, const void *s, size_t l)
+{
+	int d0, d1, d2;
+	///asm volatile("rep ; addr32 movsb\n\t"
+	asm volatile("rep ; movsb\n\t"
+		     : "=&c" (d0), "=&D" (d1), "=&S" (d2)
+		     : "0" (l), "1" ((long)d), "2" ((long)s)
+		     : "memory");
+	return d;
+}
+
+static inline void * asmregparm memset(void *d, char c, size_t l)
+{
+	int d0, d1;
+	///asm volatile("rep ; addr32 stosb\n\t"
+	asm volatile("rep ; stosb\n\t"
+		     : "=&c" (d0), "=&D" (d1)
+		     : "0" (l), "1" (d), "a" (c)
+		     : "memory");
+	return d;
+}
 
 /* a20.c */
 int enable_a20(void);
@@ -281,7 +300,7 @@ struct biosregs {
 		};
 	};
 };
-void intcall(u8 int_no, const struct biosregs *ireg, struct biosregs *oreg);
+void asmregparm intcall(u8 int_no, const struct biosregs *ireg, struct biosregs *oreg);
 
 /* cmdline.c */
 int __cmdline_find_option(unsigned long cmdline_ptr, const char *option, char *buffer, int bufsize);
@@ -330,7 +349,7 @@ int detect_memory(void);
 void __attribute__((noreturn)) go_to_protected_mode(void);
 
 /* pmjump.S */
-void __attribute__((noreturn))
+void asmregparm __attribute__((noreturn))
 	protected_mode_jump(u32 entrypoint, u32 bootparams);
 
 /* printf.c */
@@ -350,8 +369,8 @@ unsigned long long simple_strtoull(const char *cp, char **endp, unsigned int bas
 size_t strlen(const char *s);
 
 /* tty.c */
-void puts(const char *);
-void putchar(int);
+void asmregparm puts(const char *);
+void asmregparm putchar(int);
 int getchar(void);
 void kbd_flush(void);
 int getchar_timeout(void);
