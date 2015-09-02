@@ -95,7 +95,11 @@ static unsigned long get_random_long(void)
 	}
 
 	/* Circular multiply for better bit diffusion */
+#if defined(__clang__)
 	asm("mull %3"
+#else
+	asm("mul %3"
+#endif
 	    : "=a" (random), "=d" (raw)
 	    : "a" (random), "rm" (mix_const));
 	random += raw;
