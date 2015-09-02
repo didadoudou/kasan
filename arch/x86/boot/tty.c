@@ -49,7 +49,7 @@ static void __attribute__((section(".inittext"))) bios_putchar(int ch)
 	intcall(0x10, &ireg, NULL);
 }
 
-void __attribute__((section(".inittext"))) putchar(int ch)
+void asmregparm __attribute__((section(".inittext"))) putchar(int ch)
 {
 	if (ch == '\n')
 		putchar('\r');	/* \n -> \r\n */
@@ -60,7 +60,7 @@ void __attribute__((section(".inittext"))) putchar(int ch)
 		serial_putchar(ch);
 }
 
-void __attribute__((section(".inittext"))) puts(const char *str)
+void asmregparm __attribute__((section(".inittext"))) puts(const char *str)
 {
 	while (*str)
 		putchar(*str++);
