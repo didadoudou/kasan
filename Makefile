@@ -724,18 +724,28 @@ endif
 
 ifeq ($(COMPILER),clang)
 CFLAGS_KASAN_MINIMAL_COMPSPECIFIC := -mllvm -asan-globals=0
+
+ifdef CONFIG_SANITIZER_COVERAGE
+CFLAGS_SANITIZER_COVERAGE := -fsanitize-coverage=bb \
+	-mllvm -sanitizer-coverage-block-threshold=0
+else
+CFLAGS_SANITIZER_COVERAGE :=
+endif
+
 else
 CFLAGS_KASAN_MINIMAL_COMPSPECIFIC := --param asan-globals=1
 endif
 
 
 CFLAGS_KASAN_MINIMAL := $(call cc-option, -fsanitize=kernel-address \
-			$(CFLAGS_KASAN_MINIMAL_COMPSPECIFIC))
+			$(CFLAGS_KASAN_MINIMAL_COMPSPECIFIC) \
+			$(CFLAGS_SANITIZER_COVERAGE))
 
 CFLAGS_KASAN := $(call cc-option, -fsanitize=kernel-address \
 		-fasan-shadow-offset=$(CONFIG_KASAN_SHADOW_OFFSET) \
 		--param asan-stack=1 --param asan-globals=1 \
-		--param asan-instrumentation-with-call-threshold=$(call_threshold))
+		--param asan-instrumentation-with-call-threshold=$(call_threshold) \
+		$(CFLAGS_SANITIZER_COVERAGE))
 
     ifeq ($(CFLAGS_KASAN_MINIMAL),)
         $(warning Cannot use CONFIG_KASAN: \

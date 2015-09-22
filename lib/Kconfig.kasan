@@ -50,6 +50,13 @@ config KASAN_INLINE
 	  it gives about x2 boost over outline instrumentation), but
 	  make kernel's .text size much bigger.
 
+config SANITIZER_COVERAGE
+	bool "KASan coverage instrumentation"
+	help
+	  Insert calls to __sanitizer_cov() at the beginning of every basic
+	  block. This instrumentation is only supported by Clang and doesn't
+	  make much sense without KASan.
+
 endchoice
 
 endif

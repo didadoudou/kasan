@@ -1155,6 +1155,17 @@ struct sched_dl_entity {
 	struct hrtimer dl_timer;
 };
 
+#ifdef CONFIG_SANITIZER_COVERAGE
+struct sanitizer_coverage_info {
+	bool enabled;
+	int  counter;
+	void *pc_max, *pc_min;
+	void **pc_hash;
+	void **pcs;
+	int pcs_size;
+};
+#endif
+
 struct rcu_node;
 
 enum perf_event_task_context {
@@ -1585,6 +1596,9 @@ struct task_struct {
 #endif
 #ifdef CONFIG_KASAN
 	unsigned int kasan_depth;
+#ifdef CONFIG_SANITIZER_COVERAGE
+	struct sanitizer_coverage_info sanitizer_coverage;
+#endif
 #endif
 };
 

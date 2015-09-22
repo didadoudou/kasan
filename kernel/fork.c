@@ -258,6 +258,11 @@ void __put_task_struct(struct task_struct *tsk)
 	put_signal_struct(tsk->signal);
 
 	atomic_notifier_call_chain(&task_free_notifier, 0, tsk);
+#ifdef CONFIG_SANITIZER_COVERAGE
+	tsk->sanitizer_coverage.enabled = false;
+	if (tsk->sanitizer_coverage.pcs)
+		kfree(tsk->sanitizer_coverage.pcs);
+#endif
 	if (!profile_handoff_task(tsk))
 		free_task(tsk);
 }
@@ -357,6 +362,10 @@ static struct task_struct *dup_task_struct(struct task_struct *orig)
 #endif
 	tsk->splice_pipe = NULL;
 	tsk->task_frag.page = NULL;
+#ifdef CONFIG_SANITIZER_COVERAGE
+	tsk->sanitizer_coverage.enabled = false;
+	tsk->sanitizer_coverage.pcs = NULL;
+#endif
 
 	account_kernel_stack(ti, 1);
 
