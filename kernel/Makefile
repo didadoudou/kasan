@@ -1,6 +1,8 @@
 #
 # Makefile for the linux kernel.
 #
+#
+KASAN_SANITIZE_softirq.o = n
 
 obj-y     = fork.o exec_domain.o panic.o \
 	    cpu.o exit.o itimer.o time.o softirq.o resource.o \
