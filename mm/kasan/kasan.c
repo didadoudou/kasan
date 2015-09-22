@@ -203,6 +203,7 @@ static __always_inline bool memory_is_poisoned_n(unsigned long addr,
 
 static __always_inline bool memory_is_poisoned(unsigned long addr, size_t size)
 {
+#if !defined(__clang__)
 	if (__builtin_constant_p(size)) {
 		switch (size) {
 		case 1:
@@ -219,8 +220,23 @@ static __always_inline bool memory_is_poisoned(unsigned long addr, size_t size)
 			BUILD_BUG();
 		}
 	}
-
 	return memory_is_poisoned_n(addr, size);
+#else
+	switch (size) {
+	case 1:
+		return memory_is_poisoned_1(addr);
+	case 2:
+		return memory_is_poisoned_2(addr);
+	case 4:
+		return memory_is_poisoned_4(addr);
+	case 8:
+		return memory_is_poisoned_8(addr);
+	case 16:
+		return memory_is_poisoned_16(addr);
+	default:
+		return memory_is_poisoned_n(addr, size);
+	}
+#endif
 }
 
 
