@@ -452,7 +452,7 @@ static struct drm_mode_object *_object_find(struct drm_device *dev,
 		uint32_t id, uint32_t type)
 {
 	struct drm_mode_object *obj = NULL;
-
+	BUG_ON(dev->mode_config.idr_mutex.wait_list.prev == NULL);
 	mutex_lock(&dev->mode_config.idr_mutex);
 	obj = idr_find(&dev->mode_config.crtc_idr, id);
 	if (!obj || (type != DRM_MODE_OBJECT_ANY && obj->type != type) ||
