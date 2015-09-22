@@ -2828,15 +2828,6 @@ EXPORT_SYMBOL(kmem_cache_alloc_node_trace);
 static void __slab_free(struct kmem_cache *s, struct page *page,
 			void *x, unsigned long addr)
 {
-#ifdef CONFIG_KASAN
-	if (!kasan_slab_free(s, x))
-		nokasan_free(s, x, addr);
-}
-
-void nokasan_free(struct kmem_cache *s, void *x, unsigned long addr)
-{
-	struct page *page = virt_to_head_page(x);
-#endif
 	void *prior;
 	void **object = (void *)x;
 	int was_frozen;
@@ -2961,6 +2952,15 @@ slab_empty:
 static __always_inline void slab_free(struct kmem_cache *s,
 			struct page *page, void *x, unsigned long addr)
 {
+#ifdef CONFIG_KASAN
+	if (!kasan_slab_free(s, x))
+		nokasan_free(s, x, addr);
+}
+
+void nokasan_free(struct kmem_cache *s, void *x, unsigned long addr)
+{
+	struct page *page = virt_to_head_page(x);
+#endif
 	void **object = (void *)x;
 	struct kmem_cache_cpu *c;
 	unsigned long tid;
