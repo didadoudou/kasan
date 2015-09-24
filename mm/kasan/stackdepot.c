@@ -26,7 +26,7 @@
 
 #define STACK_ALLOC_ORDER 4 /* 'Slab' size order for stack depot, 16 pages */
 #define STACK_ALLOC_SIZE (1L << (PAGE_SHIFT + STACK_ALLOC_ORDER))
-#define STACK_ALLOC_GFP_MASK (__GFP_WAIT | __GFP_IO | __GFP_FS | \
+#define STACK_ALLOC_GFP_MASK ( __GFP_IO | __GFP_FS | \
 			      __GFP_NOWARN | __GFP_NORETRY | \
 			      __GFP_NOMEMALLOC | __GFP_NO_KSWAPD )
 #define STACK_ALLOC_ALIGN 4
