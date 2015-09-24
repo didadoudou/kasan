@@ -888,6 +888,8 @@ static int drm_vblank_enable(struct drm_device *dev, int crtc)
 		 * timestamps. Filtercode in drm_handle_vblank() will
 		 * prevent double-accounting of same vblank interval.
 		 */
+		BUG_ON(!(dev->driver));
+		BUG_ON(!(dev->driver->enable_vblank));
 		ret = dev->driver->enable_vblank(dev, crtc);
 		DRM_DEBUG("enabling vblank on crtc %d, ret: %d\n", crtc, ret);
 		if (ret)
