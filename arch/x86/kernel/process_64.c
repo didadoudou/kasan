@@ -433,6 +433,12 @@ void set_personality_ia32(bool x32)
 }
 EXPORT_SYMBOL_GPL(set_personality_ia32);
 
+#ifdef CONFIG_KASAN
+#ifdef __clang__
+// Work around https://crbug.com/536760.
+__attribute__((no_sanitize("kernel-address")))
+#endif
+#endif
 unsigned long get_wchan(struct task_struct *p)
 {
 	unsigned long stack;
