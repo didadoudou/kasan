@@ -358,6 +358,7 @@ long drm_ioctl(struct file *filp,
 		  (long)old_encode_dev(file_priv->minor->device),
 		  file_priv->authenticated, ioctl->name);
 
+	BUG_ON((dev->mode_config.idr_mutex.wait_list.prev == NULL) && (dev->mode_config.idr_mutex.wait_list.next != NULL));
 	flags = ioctl->flags;
 	if (drm_master_relax) {
 		if (nr == DRM_IOCTL_NR(DRM_IOCTL_SET_MASTER))
@@ -403,9 +404,10 @@ long drm_ioctl(struct file *filp,
 		} else
 			memset(kdata, 0, usize);
 
-		if (flags & DRM_UNLOCKED)
+		if (flags & DRM_UNLOCKED) {
+			BUG_ON((dev->mode_config.idr_mutex.wait_list.prev == NULL) && (dev->mode_config.idr_mutex.wait_list.next != NULL));
 			retcode = func(dev, kdata, file_priv);
-		else {
+		} else {
 			mutex_lock(&drm_global_mutex);
 			retcode = func(dev, kdata, file_priv);
 			mutex_unlock(&drm_global_mutex);

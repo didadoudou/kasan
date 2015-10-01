@@ -482,6 +482,7 @@ struct drm_mode_object *drm_mode_object_find(struct drm_device *dev,
 	/* Framebuffers are reference counted and need their own lookup
 	 * function.*/
 	WARN_ON(type == DRM_MODE_OBJECT_FB);
+	BUG_ON(dev->mode_config.idr_mutex.wait_list.prev == NULL);
 	obj = _object_find(dev, id, type);
 	/* don't leak out unref'd fb's */
 	if (obj && (obj->type == DRM_MODE_OBJECT_FB))
@@ -4680,6 +4681,7 @@ static int drm_mode_set_obj_prop_id(struct drm_device *dev,
 	struct drm_mode_object *arg_obj;
 	struct drm_property *property;
 
+	BUG_ON(dev->mode_config.idr_mutex.wait_list.prev == NULL);
 	arg_obj = drm_mode_object_find(dev, obj_id, obj_type);
 	if (!(arg_obj && object_has_prop(arg_obj, prop_id)))
 		return -ENOENT;
@@ -4724,6 +4726,7 @@ int drm_mode_obj_get_properties_ioctl(struct drm_device *dev, void *data,
 
 	drm_modeset_lock_all(dev);
 
+	BUG_ON(dev->mode_config.idr_mutex.wait_list.prev == NULL);
 	obj = drm_mode_object_find(dev, arg->obj_id, arg->obj_type);
 	if (!obj) {
 		ret = -ENOENT;
@@ -5077,6 +5080,7 @@ void destroy_vblank_event(struct drm_device *dev,
 int drm_mode_page_flip_ioctl(struct drm_device *dev,
 			     void *data, struct drm_file *file_priv)
 {
+	BUG_ON(dev->mode_config.idr_mutex.wait_list.prev == NULL);
 	struct drm_mode_crtc_page_flip *page_flip = data;
 	struct drm_mode_config *config = &dev->mode_config;
 	struct drm_crtc *crtc;
