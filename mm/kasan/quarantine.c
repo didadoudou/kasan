@@ -335,6 +335,8 @@ static unsigned long quarantine_shrinker_scan(struct shrinker * shrinker,
 				     struct shrink_control *sc) {
 	unsigned long flags;
 	unsigned long freed = 0;
+	// Temporarily disable shrinking.
+	return freed;
 
 	pr_info("Shrinker called for quarantine, gfp=%x, nid=%d, nr=%lu\n",
 		sc->gfp_mask, sc->nid, sc->nr_to_scan);
