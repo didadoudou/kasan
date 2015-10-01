@@ -43,7 +43,7 @@
 #include "ext4_jbd2.h"
 #include "ext4_extents.h"
 #include "xattr.h"
-
+#include <linux/delay.h>
 #include <trace/events/ext4.h>
 
 /*
@@ -56,6 +56,13 @@
 
 #define EXT4_EXT_DATA_VALID1	0x8  /* first half contains valid data */
 #define EXT4_EXT_DATA_VALID2	0x10 /* second half contains valid data */
+
+static void
+check_ext4_extent_header(struct ext4_extent_header *eh) {
+  struct ext4_extent *f = EXT_FIRST_EXTENT(eh);
+  struct ext4_extent *l = EXT_LAST_EXTENT(eh);
+  BUG_ON(le32_to_cpu(f->ee_block) > le32_to_cpu(l->ee_block));
+}
 
 static __le32 ext4_extent_block_csum(struct inode *inode,
 				     struct ext4_extent_header *eh)
@@ -389,6 +396,7 @@ static int ext4_valid_extent_entries(struct inode *inode,
 	if (depth == 0) {
 		/* leaf entries */
 		struct ext4_extent *ext = EXT_FIRST_EXTENT(eh);
+		check_ext4_extent_header(eh);
 		struct ext4_super_block *es = EXT4_SB(inode->i_sb)->s_es;
 		ext4_fsblk_t pblock = 0;
 		ext4_lblk_t lblock = 0;
@@ -512,6 +520,7 @@ __read_extent_tree_block(const char *function, unsigned int line,
 	if (!(flags & EXT4_EX_NOCACHE) && depth == 0) {
 		struct ext4_extent_header *eh = ext_block_hdr(bh);
 		struct ext4_extent *ex = EXT_FIRST_EXTENT(eh);
+		check_ext4_extent_header(eh);
 		ext4_lblk_t prev = 0;
 		int i;
 
@@ -642,6 +651,7 @@ static void ext4_ext_show_leaf(struct inode *inode, struct ext4_ext_path *path)
 
 	eh = path[depth].p_hdr;
 	ex = EXT_FIRST_EXTENT(eh);
+	check_ext4_extent_header(eh);
 
 	ext_debug("Displaying leaf extents for inode %lu\n", inode->i_ino);
 
@@ -768,12 +778,46 @@ ext4_ext_binsearch_idx(struct inode *inode,
  * binary search for closest extent of the given block
  * the header must be checked before calling this
  */
+static inline void *nearest_obj(struct kmem_cache *cache, struct page *page,
+				void *x) {
+#if defined(CONFIG_SLUB)
+	void *object = x - (x - page_address(page)) % cache->size;
+	void *last_object = page_address(page) +
+		(page->objects - 1) * cache->size;
+#elif defined(CONFIG_SLAB)
+	void *object = x - (x - page->s_mem) % cache->size;
+	void *last_object = page->s_mem + (cache->num - 1) * cache->size;
+#endif
+	if (unlikely(object > last_object))
+		return last_object;
+	else
+		return object;
+}
+
+static void describe_addr(const char *descr, void *addr) {
+	struct page *page;
+        if ((addr >= PAGE_OFFSET && addr < (unsigned long)high_memory)) {
+                page = virt_to_head_page(addr);
+                if (PageSlab(page)) {
+                        void *object;
+                        struct kmem_cache *cache = page->slab_cache;
+                        object = nearest_obj(cache, page, addr);
+			pr_err("object for %s: %p\n", descr, object);
+
+			return;
+                }
+	}
+	pr_err("object for %s: None\n", descr);
+}
+
+
+
 static void
 ext4_ext_binsearch(struct inode *inode,
 		struct ext4_ext_path *path, ext4_lblk_t block)
 {
 	struct ext4_extent_header *eh = path->p_hdr;
-	struct ext4_extent *r, *l, *m;
+	struct ext4_extent *r, *l, *m, *init_l, *init_r;
 
 	if (eh->eh_entries == 0) {
 		/*
@@ -785,11 +829,25 @@ ext4_ext_binsearch(struct inode *inode,
 
 	ext_debug("binsearch for %u:  ", block);
 
-	l = EXT_FIRST_EXTENT(eh) + 1;
-	r = EXT_LAST_EXTENT(eh);
-
+	init_l = l = EXT_FIRST_EXTENT(eh) + 1;
+	init_r = r = EXT_LAST_EXTENT(eh);
+	volatile __le32 l_block = le32_to_cpu(l->ee_block);
+	volatile __le32 r_block = le32_to_cpu(r->ee_block);
+	if (l_block > r_block) {
+		pr_err("in ext4_ext_binsearch for block %u, l: %p, r: %p, l->ee_block: %u, r->ee_block: %u", block, l, r, le32_to_cpu(l->ee_block), le32_to_cpu(r->ee_block));
+		describe_addr("l", l);
+		describe_addr("r", r);
+		mdelay(2000);
+		volatile __le32 new_l_block = le32_to_cpu(l->ee_block);
+		volatile __le32 new_r_block = le32_to_cpu(r->ee_block);
+		pr_err("l_block: %u, new_l_block: %u, r_block: %u, new_r_block: %u\n", l_block, new_l_block, r_block, new_r_block);
+			
+		
+		BUG_ON(le32_to_cpu(l->ee_block) > le32_to_cpu(r->ee_block));
+	}
 	while (l <= r) {
 		m = l + (r - l) / 2;
+		BUG_ON((m > init_r) || (m < init_l));
 		if (block < le32_to_cpu(m->ee_block))
 			r = m - 1;
 		else
@@ -812,6 +870,7 @@ ext4_ext_binsearch(struct inode *inode,
 		int k;
 
 		chex = ex = EXT_FIRST_EXTENT(eh);
+		check_ext4_extent_header(eh);
 		for (k = 0; k < le16_to_cpu(eh->eh_entries); k++, ex++) {
 			BUG_ON(k && le32_to_cpu(ex->ee_block)
 					  <= le32_to_cpu(ex[-1].ee_block));
@@ -1095,6 +1154,7 @@ static int ext4_ext_split(handle_t *handle, struct inode *inode,
 	if (m) {
 		struct ext4_extent *ex;
 		ex = EXT_FIRST_EXTENT(neh);
+		check_ext4_extent_header(neh);
 		memmove(ex, path[depth].p_ext, sizeof(struct ext4_extent) * m);
 		le16_add_cpu(&neh->eh_entries, m);
 	}
@@ -1290,6 +1350,7 @@ static int ext4_ext_grow_indepth(handle_t *handle, struct inode *inode,
 		neh->eh_max = cpu_to_le16(ext4_ext_space_root_idx(inode, 0));
 		EXT_FIRST_INDEX(neh)->ei_block =
 			EXT_FIRST_EXTENT(neh)->ee_block;
+		check_ext4_extent_header(neh);
 	}
 	ext_debug("new root: num %d(%d), lblock %d, ptr %llu\n",
 		  le16_to_cpu(neh->eh_entries), le16_to_cpu(neh->eh_max),
@@ -1407,6 +1468,7 @@ static int ext4_ext_search_left(struct inode *inode,
 	ex = path[depth].p_ext;
 	ee_len = ext4_ext_get_actual_len(ex);
 	if (*logical < le32_to_cpu(ex->ee_block)) {
+		check_ext4_extent_header(path[depth].p_hdr);
 		if (unlikely(EXT_FIRST_EXTENT(path[depth].p_hdr) != ex)) {
 			EXT4_ERROR_INODE(inode,
 					 "EXT_FIRST_EXTENT != ex *logical %d ee_block %d!",
@@ -1477,6 +1539,7 @@ static int ext4_ext_search_right(struct inode *inode,
 	ex = path[depth].p_ext;
 	ee_len = ext4_ext_get_actual_len(ex);
 	if (*logical < le32_to_cpu(ex->ee_block)) {
+		check_ext4_extent_header(path[depth].p_hdr);
 		if (unlikely(EXT_FIRST_EXTENT(path[depth].p_hdr) != ex)) {
 			EXT4_ERROR_INODE(inode,
 					 "first_extent(path[%d].p_hdr) != ex",
@@ -1541,6 +1604,7 @@ got_index:
 		return PTR_ERR(bh);
 	eh = ext_block_hdr(bh);
 	ex = EXT_FIRST_EXTENT(eh);
+	check_ext4_extent_header(eh);
 found_extent:
 	*logical = le32_to_cpu(ex->ee_block);
 	*phys = ext4_ext_pblock(ex);
@@ -1645,6 +1709,7 @@ static int ext4_ext_correct_indexes(handle_t *handle, struct inode *inode,
 		return 0;
 	}
 
+	check_ext4_extent_header(eh);
 	if (ex != EXT_FIRST_EXTENT(eh)) {
 		/* we correct tree if first leaf got modified only */
 		return 0;
@@ -1794,6 +1859,8 @@ static void ext4_ext_try_to_merge_up(handle_t *handle,
 
 	memcpy(path[0].p_hdr, path[1].p_hdr, s);
 	path[0].p_depth = 0;
+	check_ext4_extent_header(path[0].p_hdr);
+	check_ext4_extent_header(path[1].p_hdr);
 	path[0].p_ext = EXT_FIRST_EXTENT(path[0].p_hdr) +
 		(path[1].p_ext - EXT_FIRST_EXTENT(path[1].p_hdr));
 	path[0].p_hdr->eh_max = cpu_to_le16(max_root);
@@ -1820,6 +1887,7 @@ static void ext4_ext_try_to_merge(handle_t *handle,
 	BUG_ON(path[depth].p_hdr == NULL);
 	eh = path[depth].p_hdr;
 
+	check_ext4_extent_header(eh);
 	if (ex > EXT_FIRST_EXTENT(eh))
 		merge_done = ext4_ext_try_to_merge_right(inode, path, ex - 1);
 
@@ -1920,6 +1988,7 @@ int ext4_ext_insert_extent(handle_t *handle, struct inode *inode,
 		 * left, or on the right from the searched position. This
 		 * will make merging more effective.
 		 */
+		check_ext4_extent_header(eh);
 		if (ex < EXT_LAST_EXTENT(eh) &&
 		    (le32_to_cpu(ex->ee_block) +
 		    ext4_ext_get_actual_len(ex) <
@@ -2036,6 +2105,7 @@ has_space:
 				ext4_ext_pblock(newext),
 				ext4_ext_is_uninitialized(newext),
 				ext4_ext_get_actual_len(newext));
+		check_ext4_extent_header(eh);
 		nearex = EXT_FIRST_EXTENT(eh);
 	} else {
 		if (le32_to_cpu(newext->ee_block)
@@ -2587,6 +2657,7 @@ ext4_ext_rm_leaf(handle_t *handle, struct inode *inode,
 
 	trace_ext4_ext_rm_leaf(inode, start, ex, *partial_cluster);
 
+	check_ext4_extent_header(eh);
 	while (ex >= EXT_FIRST_EXTENT(eh) &&
 			ex_ee_block + ex_ee_len > start) {
 
@@ -2643,6 +2714,7 @@ ext4_ext_rm_leaf(handle_t *handle, struct inode *inode,
 		 * the worst case
 		 */
 		credits = 7 + 2*(ex_ee_len/EXT4_BLOCKS_PER_GROUP(inode->i_sb));
+		check_ext4_extent_header(eh);
 		if (ex == EXT_FIRST_EXTENT(eh)) {
 			correct_index = 1;
 			credits += (ext_depth(inode)) + 1;
@@ -3375,6 +3447,7 @@ static int ext4_ext_convert_to_initialized(handle_t *handle,
 		/* See if we can merge left */
 		(map_len < ee_len) &&		/*L1*/
 		(ex > EXT_FIRST_EXTENT(eh))) {	/*L2*/
+		check_ext4_extent_header(eh);
 		ext4_lblk_t prev_lblk;
 		ext4_fsblk_t prev_pblk, ee_pblk;
 		unsigned int prev_len;
@@ -4569,7 +4642,9 @@ long ext4_fallocate(struct file *file, int mode, loff_t offset, loff_t len)
 		return -EOPNOTSUPP;
 
 	if (mode & FALLOC_FL_PUNCH_HOLE)
-		return ext4_punch_hole(inode, offset, len);
+/// as suggested by tytso@	
+///		return ext4_punch_hole(inode, offset, len);
+		return -EOPNOTSUPP;
 
 	ret = ext4_convert_inline_data(inode);
 	if (ret)
